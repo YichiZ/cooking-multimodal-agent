@@ -9,6 +9,8 @@ const MediaCaptureApp = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -145,6 +147,37 @@ const MediaCaptureApp = () => {
     },
     grayButtonHover: {
       backgroundColor: '#4b5563'
+    },
+    submitButton: {
+      backgroundColor: '#059669',
+      color: 'white',
+      fontSize: '1.125rem',
+      fontWeight: '600'
+    },
+    submitButtonHover: {
+      backgroundColor: '#047857'
+    },
+    submitButtonDisabled: {
+      backgroundColor: '#9ca3af',
+      cursor: 'not-allowed'
+    },
+    submitSection: {
+      textAlign: 'center',
+      padding: '1.5rem',
+      backgroundColor: '#f8fafc',
+      borderRadius: '0.5rem',
+      border: '2px dashed #cbd5e1'
+    },
+    submitTitle: {
+      fontSize: '1.25rem',
+      fontWeight: '600',
+      color: '#1f2937',
+      marginBottom: '0.5rem'
+    },
+    submitDescription: {
+      fontSize: '0.875rem',
+      color: '#6b7280',
+      marginBottom: '1rem'
     },
     helpText: {
       fontSize: '0.875rem',
@@ -438,6 +471,72 @@ const MediaCaptureApp = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Submit media to server
+  const submitMedia = async () => {
+    if (capturedPhotos.length === 0 && audioRecordings.length === 0) {
+      setError('Please capture or upload at least one photo or audio recording before submitting.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+    setSubmitSuccess(false);
+
+    try {
+      const formData = new FormData();
+
+      // Add photos to form data
+      for (let i = 0; i < capturedPhotos.length; i++) {
+        const photo = capturedPhotos[i];
+        
+        // Convert data URL to blob for captured photos
+        if (!photo.isUploaded) {
+          const response = await fetch(photo.url);
+          const blob = await response.blob();
+          formData.append('files', blob, `captured-photo-${photo.id}.jpg`);
+        } else {
+          // For uploaded photos, we need to convert the data URL back to blob
+          const response = await fetch(photo.url);
+          const blob = await response.blob();
+          formData.append('files', blob, photo.filename || `uploaded-photo-${photo.id}.jpg`);
+        }
+      }
+
+      // Add audio recordings to form data
+      for (let i = 0; i < audioRecordings.length; i++) {
+        const recording = audioRecordings[i];
+        const response = await fetch(recording.url);
+        const blob = await response.blob();
+        formData.append('files', blob, `recording-${recording.id}.webm`);
+      }
+
+      // Send to server
+      const response = await fetch('http://127.0.0.1:8000/upload-multiple', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Upload successful:', result);
+      
+      setSubmitSuccess(true);
+      
+      // Optional: Clear media after successful upload
+      // setCapturedPhotos([]);
+      // setAudioRecordings([]);
+      
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setError('Failed to upload media: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Download media
   const downloadMedia = (url, filename) => {
     const a = document.createElement('a');
@@ -660,6 +759,45 @@ const MediaCaptureApp = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Submit Section */}
+        {(capturedPhotos.length > 0 || audioRecordings.length > 0) && (
+          <div style={styles.card}>
+            <div style={styles.submitSection}>
+              <h3 style={styles.submitTitle}>Submit Media</h3>
+              <p style={styles.submitDescription}>
+                Upload {capturedPhotos.length} photo{capturedPhotos.length !== 1 ? 's' : ''} 
+                {capturedPhotos.length > 0 && audioRecordings.length > 0 ? ' and ' : ''}
+                {audioRecordings.length > 0 && `${audioRecordings.length} audio recording${audioRecordings.length !== 1 ? 's' : ''}`} 
+                to the server
+              </p>
+              <button
+                onClick={submitMedia}
+                disabled={isSubmitting || (capturedPhotos.length === 0 && audioRecordings.length === 0)}
+                style={{
+                  ...styles.button,
+                  ...(isSubmitting || (capturedPhotos.length === 0 && audioRecordings.length === 0) 
+                    ? styles.submitButtonDisabled 
+                    : styles.submitButton
+                  )
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting && (capturedPhotos.length > 0 || audioRecordings.length > 0)) {
+                    e.target.style.backgroundColor = styles.submitButtonHover.backgroundColor;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSubmitting && (capturedPhotos.length > 0 || audioRecordings.length > 0)) {
+                    e.target.style.backgroundColor = styles.submitButton.backgroundColor;
+                  }
+                }}
+              >
+                <Upload style={styles.icon} />
+                {isSubmitting ? 'Uploading...' : 'Submit All Media'}
+              </button>
             </div>
           </div>
         )}

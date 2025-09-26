@@ -64,7 +64,7 @@ async def upload_multiple_files(files: List[UploadFile] = File(...)):
     
     for file in files:
         # Validate file type
-        allowed_types = ["image/jpeg", "image/png", "image/webp", "audio/mpeg", "audio/m4a", "audio/mp4"]
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "audio/mpeg", "audio/m4a", "audio/mp4", "audio/webm"]
         if file.content_type not in allowed_types:
             raise HTTPException(status_code=400, detail=f"File type {file.content_type} not allowed")
         
