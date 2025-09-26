@@ -1,5 +1,6 @@
 from openai import OpenAI
 import os
+import base64
 from dotenv import load_dotenv
 
 
@@ -19,10 +20,48 @@ def test_openai_api():
         api_key=api_key
     )
 
+    # Path to your image
+    image_path1 = os.path.join(script_dir, "assets", "img1.webp")
+    image_path2 = os.path.join(script_dir, "assets", "img2.webp")
+    audio_path = os.path.join(script_dir, "assets", "you-are-a-cook-voice.m4a")
+
+    # Getting the Base64 string
+    base64_image1 = encode_image(image_path1)
+    base64_image2 = encode_image(image_path2)
+    # TODO: create a class and make the client a member variable.
+    audio_text = speech_to_text(audio_path, client)
+
     response = client.responses.create(
         model="gpt-5-mini-2025-08-07",
-        input="write a haiku about ai",
-        store=True,
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    { "type": "input_text", "text": audio_text},
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:image/webp;base64,{base64_image1}",
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:image/webp;base64,{base64_image2}",
+                    },
+                ],
+            }
+        ],
     )
 
     return response.output_text
+
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+    
+def speech_to_text(audio_path, client):
+    with open(audio_path, "rb") as audio_file:
+        transcription = client.audio.transcriptions.create(
+            model="gpt-4o-transcribe", 
+            file=audio_file
+        )
+        print("Transcription result:", transcription.text)
+        return transcription.text
